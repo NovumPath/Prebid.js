@@ -5,19 +5,17 @@ import { ajax } from '../src/ajax.js';
 import { config } from '../src/config.js';
 
 const analyticsType = 'endpoint';
-const defaultUrl = 'https://hookb.in/wNgPLbjWkxtqWVaqDErX';
+const defaultUrl = '';
+const VERSION = '3.0';
 var auctionTracker = {};
 var bidTimeouts = [];
 var auctionEndStorage = null;
 var platformURL;
-var bidderAnalyticsEndpoint;
+var bidderAnalyticsDomain;
 var publisherId;
 
 
 const auctionInit = function (eventType, args) {
-  console.log({
-    eventType: eventType, data: args
-  });
 
   var auctionId = args.auctionId;
   auctionTracker[auctionId] = {};
@@ -29,19 +27,15 @@ const auctionInit = function (eventType, args) {
       nob: {}
     }
   );
-  console.log('Auction Init auctionTracker 2: ', auctionTracker)
 }
 
 const bidRequested = function(eventType, args) {
-  console.log(eventType, args);
 }
 
 const bidResponse = function(eventType, args) {
-  console.log(eventType, args);
 }
 
 const bidWon = function(eventType, args) {
-  console.log(eventType, args);
   var relevantBidsData = [];
   var responses = auctionTracker[args.auctionId][args.adUnitCode].res;
   var nonResponses = auctionTracker[args.auctionId][args.adUnitCode].nob; 
@@ -95,25 +89,25 @@ const bidWon = function(eventType, args) {
   var fullPlatformURL = (platformUrlMatch ? platformUrlMatch[0] : platformURL) + 'data.php?type=pbstats';
 
   ajax(fullPlatformURL, null, payload);
-  if(bidderAnalyticsEndpoint && publisherId) {
+  if(bidderAnalyticsDomain && publisherId) {
+    var optionalForwardSlash = bidderAnalyticsDomain.match(/\/$/) ? '' : '/';
+    var bidderAnalyticsURL = `${bidderAnalyticsDomain}${optionalForwardSlash}protocol.php?action=prebid_impression&version=${VERSION}`
+    
     bidderPayload = JSON.stringify(
       {
         platform: publisherId,
         data: relevantBidsData
       }
     );
-    ajax(bidderAnalyticsEndpoint, null, bidderPayload);
+    ajax(bidderAnalyticsURL, null, bidderPayload);
   }
-  console.log('relevantBidsData: ', relevantBidsData);
 }
 
 const bidTimeout = function(eventType, args) {
   bidTimeouts = args;
-  console.log(eventType, args);
 }
 
 const auctionEnd = function(eventType, args) {
-  console.log(eventType, args);
   auctionEndStorage = args;
   //adding pageURL here:
   if (!auctionTracker.pageURL) {
@@ -184,11 +178,9 @@ const auctionEnd = function(eventType, args) {
         noBidObject[req.bidder].timeout = true; 
       }
 })
-  console.log('Auction Tracker:', auctionTracker);
 }
 
 const noBid = function(eventType, args) {
-  console.log(eventType, args);
   var auctionId = args.auctionId;
   var adUnitCode = args.adUnitCode;
   var bidder = args.bidder;
@@ -252,7 +244,7 @@ adhashAdapter.originEnableAnalytics = adhashAdapter.enableAnalytics;
 adhashAdapter.enableAnalytics = (config) => {
   adhashAdapter.initOptions = config.options;
   platformURL = adhashAdapter.initOptions.platformURL;
-  bidderAnalyticsEndpoint = adhashAdapter.initOptions.bidderURL;
+  bidderAnalyticsDomain = adhashAdapter.initOptions.bidderURL;
   publisherId = adhashAdapter.initOptions.publisherId;
 
   adhashAdapter.originEnableAnalytics(config);
