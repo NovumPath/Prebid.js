@@ -68,7 +68,7 @@ const bidWon = function(eventType, args) {
   winningBid.cost = args.cpm / 1000;
   winningBid.currency = args.currency;
   winningBid.delay = args.timeToRespond;
-  winningBid.pageURL = auctionTracker.pageURL;
+  winningBid.domain = auctionTracker.domain;
   winningBid.ssp = args.bidder;
 
   relevantBidsData.push(winningBid);
@@ -110,9 +110,12 @@ const bidTimeout = function(eventType, args) {
 const auctionEnd = function(eventType, args) {
   auctionEndStorage = args;
   //adding pageURL here:
-  if (!auctionTracker.pageURL) {
-    var firstRequest = args.bidderRequests[0];
-    auctionTracker.pageURL = firstRequest.refererInfo.stack[firstRequest.refererInfo.stack.length - 1];
+  if (!auctionTracker.domain) {
+    try {
+      auctionTracker.domain = window.top.location.host; 
+    } catch {
+      auctionTracker.domain = '';
+    }
   }
   
   // Populate Request info
@@ -120,7 +123,7 @@ const auctionEnd = function(eventType, args) {
     for (var bid of req.bids) {
       auctionTracker[req.auctionId][bid.adUnitCode].req[req.bidderCode] = {
         ssp: req.bidderCode,
-        pageURL: auctionTracker.pageURL,
+        domain: auctionTracker.domain,
         delay: null,
         bid: false,
         win: false,
@@ -133,10 +136,9 @@ const auctionEnd = function(eventType, args) {
   // Populate Response info
   args.bidsReceived.forEach(res => {
       var unitAuction = auctionTracker[res.auctionId][res.adUnitCode];
-      var reqObj = unitAuction.req;
       unitAuction.res[res.bidderCode] = {
           ssp: res.bidderCode,
-          pageURL: reqObj[res.bidderCode].pageURL,
+          domain: auctionTracker.domain,
           delay: res.timeToRespond,
           bid: true,
           win: false,
@@ -152,7 +154,7 @@ const auctionEnd = function(eventType, args) {
     var nobObj = unitAuction.nob;
     nobObj[res.bidder] = {
         ssp: res.bidder,
-        pageURL: unitAuction.req[res.bidder].pageURL,
+        domain: auctionTracker.domain,
         delay: null,
         bid: false,
         win: false,
@@ -167,14 +169,13 @@ const auctionEnd = function(eventType, args) {
       if(!noBidObject[req.bidder]) {
         noBidObject[req.bidder] = {
           ssp: req.bidder,
-          pageURL: auctionTracker.pageURL,
+          domain: auctionTracker.domain,
           bid: false,
           win: false,
           timeout: true,
           cost: 0.0,
         }
       } else {
-        // Do we want this to be true if it's already set, possibly by the explicit noBid event?
         noBidObject[req.bidder].timeout = true; 
       }
 })
@@ -187,15 +188,13 @@ const noBid = function(eventType, args) {
   auctionTracker[auctionId][adUnitCode].nob[bidder] = {
     bid: false,
     cost: 0,
-    pageURL: auctionTracker.pageURL,
+    domain: auctionTracker.domain,
     ssp: bidder,
     timeout: false,
     win: false
   }
 
 }
-
-
 
 const {
   EVENTS: {
