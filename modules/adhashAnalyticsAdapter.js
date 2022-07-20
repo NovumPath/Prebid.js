@@ -100,7 +100,7 @@ const bidWon = function(eventType, args) {
       }
     );
     ajax(bidderAnalyticsURL, null, bidderPayload);
-  }
+  } 
 }
 
 const bidTimeout = function(eventType, args) {
@@ -109,7 +109,7 @@ const bidTimeout = function(eventType, args) {
 
 const auctionEnd = function(eventType, args) {
   auctionEndStorage = args;
-  //adding pageURL here:
+  //adding domain here:
   if (!auctionTracker.domain) {
     try {
       auctionTracker.domain = window.top.location.host; 
@@ -178,7 +178,7 @@ const auctionEnd = function(eventType, args) {
       } else {
         noBidObject[req.bidder].timeout = true; 
       }
-})
+  })
 }
 
 const noBid = function(eventType, args) {
@@ -193,7 +193,6 @@ const noBid = function(eventType, args) {
     timeout: false,
     win: false
   }
-
 }
 
 const {
