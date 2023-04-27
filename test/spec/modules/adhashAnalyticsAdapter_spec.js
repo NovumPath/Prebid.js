@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import adhashAdapter from 'modules/adhashAnalyticsAdapter.js';
-import { getAuctionTracker, getTimeouts, getSavedFallbackData,clearSavedFallbackData } from 'modules/adhashAnalyticsAdapter.js';
+import { getAuctionTracker, getTimeouts, getSavedFallbackData, clearSavedFallbackData } from 'modules/adhashAnalyticsAdapter.js';
 import CONSTANTS from 'src/constants.json';
 import * as events from 'src/events.js';
 
@@ -38,8 +38,8 @@ const ANALYTICS_CONFIG = {
 
 const auctionInitArgs = {
   auctionId: AUCTION_ID,
-    timestamp: CURRENT_TIME,
-    timeout: 3000,
+  timestamp: CURRENT_TIME,
+  timeout: 3000,
   adUnitCodes: [AD_UNIT_CODE],
 };
 
@@ -358,7 +358,7 @@ describe('adhashAnalyticsAdapter', function () {
       ]);
 
       clock.tick(SLOT_LOAD_WAIT_TIME * 2);
-      
+
       let timeoutData = getTimeouts();
       for (let singleTimeout of timeoutData) {
         expect(singleTimeout).to.contain({adUnitCode: AD_UNIT_CODE});
