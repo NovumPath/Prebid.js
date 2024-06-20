@@ -3,7 +3,7 @@ import { getStorageManager } from '../src/storageManager.js';
 import { includes } from '../src/polyfill.js';
 import { BANNER, VIDEO } from '../src/mediaTypes.js';
 
-const VERSION = '3.6';
+const VERSION = '4.0';
 const BAD_WORD_STEP = 0.1;
 const BAD_WORD_MIN = 0.2;
 const ADHASH_BIDDER_CODE = 'adhash';
@@ -189,15 +189,6 @@ export const spec = {
       const bidderURL = validBidRequests[i].params.bidderURL || 'https://bidder.adhash.com';
       const url = `${bidderURL}/rtb?version=${VERSION}&prebid=true`;
       const index = Math.floor(Math.random() * validBidRequests[i].sizes.length);
-      const size = validBidRequests[i].sizes[index].join('x');
-      const creativeData = includes(Object.keys(validBidRequests[i].mediaTypes), VIDEO) ? {
-        size: 'preroll',
-        position: validBidRequests[i].adUnitCode,
-        playerSize: size
-      } : {
-        size: size,
-        position: validBidRequests[i].adUnitCode
-      };
       let recentAds = [];
       let recentAdsPrebid = [];
       if (storage.localStorageIsEnabled()) {
@@ -218,6 +209,23 @@ export const spec = {
       window.adsTotalSurface += adHeight * adWidth;
       window.adsCount++;
 
+      const adTagIsVideo = includes(Object.keys(validBidRequests[i].mediaTypes), VIDEO);
+      const size = validBidRequests[i].sizes[index].join('x');
+      const adTagSizes = adTagIsVideo ? ['preroll', 'midroll', 'postroll'] : [size];
+      let creativesData = [];
+
+      for (let adTagSize of adTagSizes) {
+        let creativeData = adTagIsVideo ? {
+          size: [adTagSize],
+          position: validBidRequests[i].adUnitCode,
+          playerSize: size
+        } : {
+          size: [adTagSize],
+          position: validBidRequests[i].adUnitCode
+        };
+        creativesData.push(creativeData);
+      }
+
       bidRequests.push({
         method: 'POST',
         url: url + '&publisher=' + validBidRequests[i].params.publisherId,
@@ -235,7 +243,7 @@ export const spec = {
             language: window.navigator.language,
             userAgent: window.navigator.userAgent
           },
-          creatives: [creativeData],
+          creatives: creativesData,
           blockedCreatives: [],
           currentTimestamp: (new Date().getTime() / 1000) | 0,
           recentAds: recentAds,
@@ -265,53 +273,61 @@ export const spec = {
     ) {
       return [];
     }
-
-    if (storage.localStorageIsEnabled()) {
-      const prefix = request.bidRequest.params.prefix || 'adHash';
-      let recentAdsPrebid = JSON.parse(storage.getDataFromLocalStorage(prefix + 'recentAdsPrebid') || '[]');
-      recentAdsPrebid.push([
-        (new Date().getTime() / 1000) | 0,
-        responseBody.creatives[0].advertiserId,
-        responseBody.creatives[0].budgetId,
-        responseBody.creatives[0].expectedHashes.length ? responseBody.creatives[0].expectedHashes[0] : '',
-      ]);
-      let recentAdsPrebidFinal = JSON.stringify(recentAdsPrebid.slice(-100));
-      storage.setDataInLocalStorage(prefix + 'recentAdsPrebid', recentAdsPrebidFinal);
-    }
-
-    const publisherURL = JSON.stringify(request.bidRequest.params.platformURL);
-    const bidderURL = request.bidRequest.params.bidderURL || 'https://bidder.adhash.com';
-    const oneTimeId = request.bidRequest.adUnitCode + Math.random().toFixed(16).replace('0.', '.');
-    const bidderResponse = JSON.stringify({ responseText: JSON.stringify(responseBody) });
-    const requestData = JSON.stringify(request.data);
-
-    let response = {
-      requestId: request.bidRequest.bidId,
-      cpm: responseBody.creatives[0].costEUR,
-      width: request.bidRequest.sizes[0][0],
-      height: request.bidRequest.sizes[0][1],
-      creativeId: request.bidRequest.adUnitCode,
-      netRevenue: true,
-      currency: 'EUR',
-      ttl: 60,
-      meta: {
-        advertiserDomains: responseBody.advertiserDomains ? [responseBody.advertiserDomains] : []
+    let response = [];
+    for (let creative of responseBody.creatives) {
+      if (!Object.values(creative).length) {
+        continue;
       }
-    };
-    if (typeof request == 'object' && typeof request.bidRequest == 'object' && typeof request.bidRequest.mediaTypes == 'object' && includes(Object.keys(request.bidRequest.mediaTypes), BANNER)) {
-      response = Object.assign({
-        ad:
-        `<div id="${oneTimeId}"></div>
-        <script src="${bidderURL}/static/scripts/creative.min.js"></script>
-        <script>callAdvertiser(${bidderResponse},['${oneTimeId}'],${requestData},${publisherURL})</script>`
-      }, response);
-    } else if (includes(Object.keys(request.bidRequest.mediaTypes), VIDEO)) {
-      response = Object.assign({
-        vastUrl: responseBody.creatives[0].vastURL,
-        mediaType: VIDEO
-      }, response);
+      if (storage.localStorageIsEnabled()) {
+        const prefix = request.bidRequest.params.prefix || 'adHash';
+        let recentAdsPrebid = JSON.parse(storage.getDataFromLocalStorage(prefix + 'recentAdsPrebid') || '[]');
+        recentAdsPrebid.push([
+          (new Date().getTime() / 1000) | 0,
+          creative.advertiserId,
+          creative.budgetId,
+          creative.expectedHashes.length ? creative.expectedHashes[0] : '',
+        ]);
+        let recentAdsPrebidFinal = JSON.stringify(recentAdsPrebid.slice(-100));
+        storage.setDataInLocalStorage(prefix + 'recentAdsPrebid', recentAdsPrebidFinal);
+      }
+
+      const publisherURL = JSON.stringify(request.bidRequest.params.platformURL);
+      const bidderURL = request.bidRequest.params.bidderURL || 'https://bidder.adhash.com';
+      const oneTimeId = request.bidRequest.adUnitCode + Math.random().toFixed(16).replace('0.', '.');
+      const bidderResponse = JSON.stringify({ responseText: JSON.stringify(responseBody) });
+      const requestData = JSON.stringify(request.data);
+
+      let singleResponse = {
+        requestId: request.bidRequest.bidId,
+        cpm: creative.costEUR,
+        width: request.bidRequest.sizes[0][0],
+        height: request.bidRequest.sizes[0][1],
+        creativeId: request.bidRequest.adUnitCode,
+        netRevenue: true,
+        currency: 'EUR',
+        ttl: 60,
+        meta: {
+          advertiserDomains: responseBody.advertiserDomains ? [responseBody.advertiserDomains] : []
+        }
+      };
+      if (typeof request == 'object' && typeof request.bidRequest == 'object' && typeof request.bidRequest.mediaTypes == 'object' && includes(Object.keys(request.bidRequest.mediaTypes), BANNER)) {
+        singleResponse = Object.assign({
+          ad:
+          `<div id="${oneTimeId}"></div>
+          <script src="${bidderURL}/static/scripts/creative.min.js"></script>
+          <script>callAdvertiser(${bidderResponse},['${oneTimeId}'],${requestData},${publisherURL})</script>`
+        }, singleResponse);
+      } else if (includes(Object.keys(request.bidRequest.mediaTypes), VIDEO)) {
+        singleResponse = Object.assign({
+          vastParameters: creative.vastParameters,
+          vastUrl: creative.vastURL,
+          mediaType: VIDEO
+        }, singleResponse);
+      }
+      response.push(singleResponse);
     }
-    return [response];
+
+    return response;
   }
 };
 
